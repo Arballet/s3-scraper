@@ -42,7 +42,7 @@ docker run -d \
   s3-scraper
 
 curl http://localhost:8000/metrics
-'''
+```
 
 ## License
 
