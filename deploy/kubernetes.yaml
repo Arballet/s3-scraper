@@ -1,0 +1,71 @@
+# Example manifests. Every replica lists the buckets itself: two replicas give
+# availability at the cost of double the S3 requests.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s3-scraper
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: "<access-key>"
+  AWS_SECRET_ACCESS_KEY: "<secret-key>"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-scraper
+data:
+  S3_ENDPOINT: "https://s3.example.com"
+  S3_REGION: "us-east-1"
+  S3_BUCKETS: "my-bucket:incoming/"
+  SCRAPE_INTERVAL: "300"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3-scraper
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: s3-scraper
+  template:
+    metadata:
+      labels:
+        app: s3-scraper
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: s3-scraper
+          image: s3-scraper:latest
+          ports:
+            - name: metrics
+              containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: s3-scraper
+            - configMapRef:
+                name: s3-scraper
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          resources:
+            requests:
+              cpu: 20m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
